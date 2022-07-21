@@ -24,7 +24,10 @@ parser.add_argument("-type", type=str, metavar='type', help= "sum or avg")
 
 args = parser.parse_args()
 paths = glob.glob(args.p + "*.sqlite")
-df = pd.DataFrame()    
+df = pd.DataFrame() 
+my_dict = {}
+x_data = []
+y_data = []
 casename = re.split('-', re.split('/', paths[0])[len(re.split('/', paths[0])) - 1])
 for ele in paths:
     directory = re.split('/', ele) 
@@ -43,50 +46,70 @@ for ele in paths:
         
         
         other = (pd.read_sql_query(f"SELECT * from {args.table}", con)).iloc[args.f:args.l] # get specific range of steps from sqlite file
-        print(args.type)
+        print(other)
         if args.type == 'avg' :
-            
 
-            average = other.mean(axis=1)
+            average = other.iloc[:,2].mean()
+
+            y_data.append(average)
             
-            df[global_elements] = average
-        
+            x_data.append(int(global_elements))   
         elif args.type == 'sum' :
             
-
-            print(other['value'].sum())
-            #summation = other.sum(axis=1)  
+            summation = other.iloc[:,2].sum()
             
-            summation = other['value'].sum()
-            df[global_elements] = summation
-            #df.insert(0, 'col_name', summation)
+            y_data.append(summation)
             
-            
-            print(df.head())
-            print(df[global_elements])
-            print("yo")
+            x_data.append(int(global_elements))
+    
         else :
             df[global_elements] = other.iloc[:, 2]
             
     con.close()
 
-for col_name in df.columns: 
-    print(col_name)
-print(df.columns.values[1])
-
+def plot_bar_sum():
+    my_dict['nelem'] = x_data
+    
+    my_dict['sum'] = y_data
+    
+    df2 = pd.DataFrame(my_dict)
+    
+    df2.plot(x='nelem', y='sum', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    
+    plt.show()
+    
+def plot_bar_avg():
+    my_dict['nelem'] = x_data
+    
+    my_dict['avg'] = y_data
+    
+    df2 = pd.DataFrame(my_dict)
+    
+    df2.plot(x='nelem', y='avg', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    
+    plt.show()
+    
 def plot_steps():
     ax = df.plot.bar()
-    ax.set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    
+    ax.set(xlabel=f"Number of Elements", ylabel=args.table, title=f"{casename[0]} with different mesh sizes, Steps {args.f} - {args.l}")
+    
     plt.show()
+    
 def box_plot():
     fig, ax = plt.subplots()
+    
     ax.set_xticklabels(df.columns, rotation=0)
+    
     ax.set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    
     for n, col in enumerate(df.columns):
+        
         ax.boxplot(df[col], positions=[n+1], notch=True)
-        #ax.annotate('local max', xy = (col, df[col].median()), xytext =(col, df[col].median() + 20), arrowprops = dict(facecolor ='green', shrink = 0.05),)
-   
+    
     plt.show()
+    
+    
 def get_x_tick_labels(df, grouped_by):
     tmp = df.groupby([grouped_by]).size()
     return ["{0}: {1}".format(k,v) for k, v in tmp.to_dict().items()]
@@ -110,10 +133,12 @@ def add_values(bp, ax):
                         '%.3f' % y, # Value (3f = 3 decimal float)
                         verticalalignment='center', # Centered vertically with line 
                         fontsize=16, backgroundcolor="white")
-    
-
-
-box_plot()
+if args.type == 'avg':
+    plot_bar_avg()
+elif args.type == 'sum' :
+    plot_bar_sum()
+else:
+    box_plot()
 
 
 
