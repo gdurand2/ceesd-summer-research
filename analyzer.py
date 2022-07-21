@@ -91,36 +91,6 @@ def box_plot():
 
 
 box_plot()
-#plot_steps()
-# df.plot.box()
 
-
-# import datetime
-# import numpy as np
-# from matplotlib.backends.backend_pdf import PdfPages
-# import matplotlib.pyplot as plt
-
-# def fig1():
-#   fig = plt.figure(constrained_layout=True)
-  
-  
-#   ax = plt.axes()
-#   ax.set_facecolor('yellowgreen')
-
-#   col = 'darkolivegreen'
-#   ax.spines['bottom'].set_color(col)    #plot border
-#   ax.spines['top'].set_color(col) 
-#   ax.spines['right'].set_color(col)
-#   ax.spines['left'].set_color(col)
-#   ax.tick_params(axis='x', colors=col)  #ticks
-#   ax.tick_params(axis='y', colors=col)
-#   ax.yaxis.label.set_color(col)       #axis label
-#   ax.xaxis.label.set_color(col)       
-#   ax.title.set_color(col)             #title
-
-#   plt.plot(range(7), [3, 1, 4, 1, 5, 0, 2], 'w-o')
-#   plt.show()  
-  
-# fig1()  
 
 
