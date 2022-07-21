@@ -84,9 +84,32 @@ def box_plot():
     ax.set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
     for n, col in enumerate(df.columns):
         ax.boxplot(df[col], positions=[n+1], notch=True)
-        ax.annotate('local max', xy = (col, df[col].median()), xytext =(col, df[col].median() + 20), arrowprops = dict(facecolor ='green', shrink = 0.05),)
+        #ax.annotate('local max', xy = (col, df[col].median()), xytext =(col, df[col].median() + 20), arrowprops = dict(facecolor ='green', shrink = 0.05),)
    
     plt.show()
+def get_x_tick_labels(df, grouped_by):
+    tmp = df.groupby([grouped_by]).size()
+    return ["{0}: {1}".format(k,v) for k, v in tmp.to_dict().items()]
+
+def series_values_as_dict(series_object):
+    tmp = series_object.to_dict().values()
+    return [y for y in tmp][0]
+
+def add_values(bp, ax):
+    for element in ['whiskers', 'medians', 'caps']:
+        for line in bp[element]:
+            
+            
+            (x_l, y),(x_r, _) = line.get_xydata()
+
+            if not np.isnan(y): 
+                x_line_center = x_l + (x_r - x_l)/2
+                y_line_center = y  # Since it's a line and it's horisontal
+                # overlay the value:  on the line, from center to right
+                ax.text(x_line_center, y_line_center, # Position
+                        '%.3f' % y, # Value (3f = 3 decimal float)
+                        verticalalignment='center', # Centered vertically with line 
+                        fontsize=16, backgroundcolor="white")
     
 
 
