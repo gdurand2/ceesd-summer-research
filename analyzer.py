@@ -25,6 +25,7 @@ parser.add_argument("-l", type=int, metavar='last step', help= "the last step")
 parser.add_argument("-table", type=str, metavar='table', help= "the sqlite folder path")
 parser.add_argument("-p", type=str, metavar='path', help= "the sqlite folder path")
 parser.add_argument("-type", type=str, metavar='type', help= "sum or avg")
+parser.add_argument("-annotate", type=bool, metavar='annotate', help= "true or false")
 
 args = parser.parse_args()
 paths = glob.glob(args.p + "*.sqlite")
@@ -35,9 +36,9 @@ y_data = []
 t_step_data = []
 t_init_data = []
 memory_usage_python = []
-print(paths)
+
 casename = re.split('-', re.split('/', paths[0])[len(re.split('/', paths[0])) - 1])
-print(casename)
+
 
 for ele in paths:
     directory = re.split('/', ele) 
@@ -95,9 +96,37 @@ def plot_all():
     my_dict['memory max'] = memory_usage_python
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='t_step', style='.-', ax=axes[0], color='red', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_step', title=f"{casename[0]} with different mesh sizes")
-    df2.plot(x='nelem', y='t_init', style='.-', ax=axes[1], color='green', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_init')
-    df2.plot(x='nelem', y='memory max', style='.-', ax=axes[2], color='blue', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='memory max')
+    df2.plot(x='nelem',
+             y='t_step',
+             style='.-',
+             ax=axes[0],
+             color='red',
+             grid=True,
+             marker='o',
+             ms=4,
+             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
+                                      ylabel='t_step',
+                                      title=f"{casename[0]} with different mesh sizes")
+    df2.plot(x='nelem',
+             y='t_init',
+             style='.-',
+             ax=axes[1],
+             color='green',
+             grid=True,
+             marker='o',
+             ms=4,
+             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
+                                      ylabel='t_init')
+    df2.plot(x='nelem',
+             y='memory max',
+             style='.-',
+             ax=axes[2],
+             color='blue',
+             grid=True,
+             marker='o',
+             ms=4,
+             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
+                                      ylabel='memory max')
     plt.show()
 
 
@@ -107,7 +136,26 @@ def plot_bar_sum():
     my_dict['sum'] = y_data 
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='sum', style='.-', grid=True).set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    fig, ax = plt.subplots()
+    df2.plot(x='nelem',
+             y='sum',
+             style='.-',
+             grid=True,
+             marker='o',
+             ms=4,
+             markerfacecolor='w',
+             ax = ax).set(xlabel=f"Steps {args.f} - {args.l} ",
+                          ylabel=args.table,
+                          title=f"{casename[0]} with different mesh sizes")
+    if args.annotate:
+        for x,y in zip(x_data,y_data):
+            label = x
+            plt.annotate(label,
+                        (x,y),
+                        textcoords="offset points",
+                        xytext=(0,10), 
+                        ha='center',
+                        fontsize=8) 
     plt.show()
     
 def plot_bar_avg():
@@ -115,18 +163,43 @@ def plot_bar_avg():
     my_dict['avg'] = y_data
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='avg', style='.-', grid=True).set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    fig, ax = plt.subplots()
+    df2.plot(x='nelem',
+             y='avg',
+             style='.-',
+             grid=True,
+             marker='o',
+             ms=4,
+             markerfacecolor='w',
+             ax = ax).set(xlabel=f"Steps {args.f} - {args.l} ",
+                          ylabel=args.table,
+                          title=f"{casename[0]} with different mesh sizes")
+    if args.annotate:
+        print("whatup")
+        for x,y in zip(x_data,y_data):
+            label = x
+            plt.annotate(label,
+                        (x,y),
+                        textcoords="offset points",
+                        xytext=(0,10), 
+                        ha='center',
+                        fontsize=8) 
+            
     plt.show()
     
 def plot_steps():
     ax = df.plot.bar()
-    ax.set(xlabel=f"Number of Elements", ylabel=args.table, title=f"{casename[0]} with different mesh sizes, Steps {args.f} - {args.l}")
+    ax.set(xlabel=f"Number of Elements",
+           ylabel=args.table,
+           title=f"{casename[0]} with different mesh sizes, Steps {args.f} - {args.l}")
     plt.show()
     
 def box_plot():
     fig, ax = plt.subplots()
     ax.set_xticklabels(df.columns, rotation=0)
-    ax.set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    ax.set(xlabel=f"Steps {args.f} - {args.l} ",
+           ylabel=args.table,
+           title=f"{casename[0]} with different mesh sizes")
     for n, col in enumerate(df.columns):
         ax.boxplot(df[col], positions=[n+1], notch=True)
     plt.show()
@@ -163,6 +236,3 @@ elif args.table is not None:
     box_plot()
 else:
     plot_all()
-
-
-
