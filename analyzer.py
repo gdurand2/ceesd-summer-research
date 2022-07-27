@@ -35,7 +35,9 @@ y_data = []
 t_step_data = []
 t_init_data = []
 memory_usage_python = []
+print(paths)
 casename = re.split('-', re.split('/', paths[0])[len(re.split('/', paths[0])) - 1])
+print(casename)
 
 for ele in paths:
     directory = re.split('/', ele) 
@@ -92,6 +94,7 @@ def plot_all():
     my_dict['t_init'] = t_init_data
     my_dict['memory max'] = memory_usage_python
     df2 = pd.DataFrame(my_dict)
+    df2 = df2.sort_values(by='nelem')
     df2.plot(x='nelem', y='t_step', style='.-', ax=axes[0], color='red').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_step', title=f"{casename[0]} with different mesh sizes")
     df2.plot(x='nelem', y='t_init', style='.-', ax=axes[1], color='green').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_init')
     df2.plot(x='nelem', y='memory max', style='.-', ax=axes[2], color='blue').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='memory max')
@@ -101,6 +104,7 @@ def plot_bar_sum():
     my_dict['nelem'] = x_data
     my_dict['sum'] = y_data 
     df2 = pd.DataFrame(my_dict)
+    df2 = df2.sort_values(by='nelem')
     df2.plot(x='nelem', y='sum', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
     plt.show()
     
@@ -108,6 +112,7 @@ def plot_bar_avg():
     my_dict['nelem'] = x_data
     my_dict['avg'] = y_data
     df2 = pd.DataFrame(my_dict)
+    df2 = df2.sort_values(by='nelem')
     df2.plot(x='nelem', y='avg', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
     plt.show()
     
@@ -152,7 +157,7 @@ if args.type == 'avg' and args.table is not None:
     plot_bar_avg()
 elif args.type == 'sum' and args.table is not None:
     plot_bar_sum()
-elif args.type is not None:
+elif args.table is not None:
     box_plot()
 else:
     plot_all()
