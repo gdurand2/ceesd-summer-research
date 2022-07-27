@@ -95,17 +95,19 @@ def plot_all():
     my_dict['memory max'] = memory_usage_python
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='t_step', style='.-', ax=axes[0], color='red').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_step', title=f"{casename[0]} with different mesh sizes")
-    df2.plot(x='nelem', y='t_init', style='.-', ax=axes[1], color='green').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_init')
-    df2.plot(x='nelem', y='memory max', style='.-', ax=axes[2], color='blue').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='memory max')
+    df2.plot(x='nelem', y='t_step', style='.-', ax=axes[0], color='red', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_step', title=f"{casename[0]} with different mesh sizes")
+    df2.plot(x='nelem', y='t_init', style='.-', ax=axes[1], color='green', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='t_init')
+    df2.plot(x='nelem', y='memory max', style='.-', ax=axes[2], color='blue', grid=True, marker='o', ms=4, markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel='memory max')
     plt.show()
 
+
+    
 def plot_bar_sum():
     my_dict['nelem'] = x_data
     my_dict['sum'] = y_data 
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='sum', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    df2.plot(x='nelem', y='sum', style='.-', grid=True).set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
     plt.show()
     
 def plot_bar_avg():
@@ -113,7 +115,7 @@ def plot_bar_avg():
     my_dict['avg'] = y_data
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem', y='avg', style='.-').set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
+    df2.plot(x='nelem', y='avg', style='.-', grid=True).set(xlabel=f"Steps {args.f} - {args.l} ", ylabel=args.table, title=f"{casename[0]} with different mesh sizes")
     plt.show()
     
 def plot_steps():
