@@ -1,5 +1,6 @@
 from operator import index
 import os
+from tkinter import font
 from turtle import color
 import pandas as pd 
 import sqlite3
@@ -13,10 +14,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import string
-
-#set up, first step, memory, first step timing average or sum
-#standard deviation of the average
-#make more data points (different grid sizes) past into docs
 
 
 parser = argparse.ArgumentParser(description="python plot_performance.py -f <first step> -l <last step> ./path/to/my/sqlite/files")
@@ -36,6 +33,7 @@ y_data = []
 t_step_data = []
 t_init_data = []
 memory_usage_python = []
+compile_time_data = []
 
 casename = re.split('-', re.split('/', paths[0])[len(re.split('/', paths[0])) - 1])
 
@@ -70,8 +68,8 @@ for ele in paths:
     else:
         if args.type == 'sum' :
             x_data.append(int(global_elements))
-            t_step_mean = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).sum() 
-            t_step_data.append(t_step_mean)
+            t_step_sum = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).sum() 
+            t_step_data.append(t_step_sum)
             t_init = pd.read_sql_query(f"SELECT * from t_init", con).iloc[:,2]
             t_init_data.append(float(t_init))
             memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
@@ -84,52 +82,76 @@ for ele in paths:
             t_init_data.append(float(t_init))
             memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
             memory_usage_python.append(memory_usage_python_max)
+            compile_time = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[0:1,2])
+            print(compile_time)
+            compile_time_data.append(float(compile_time))
             
+    
     con.close()
     
-    
+csfont = {'fontname':'DejaVu Sans'}   
 def plot_all():
-    fig, axes = plt.subplots(nrows=3, ncols=1)
+    fig, axes = plt.subplots(nrows=4, ncols=1)
     my_dict['nelem'] = x_data
     my_dict['t_step'] = t_step_data
     my_dict['t_init'] = t_init_data
     my_dict['memory max'] = memory_usage_python
+    my_dict['compile time'] = compile_time_data
     df2 = pd.DataFrame(my_dict)
     df2 = df2.sort_values(by='nelem')
-    df2.plot(x='nelem',
-             y='t_step',
-             style='.-',
-             ax=axes[0],
-             color='red',
-             grid=True,
-             marker='o',
-             ms=4,
-             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
-                                      ylabel='t_step',
-                                      title=f"{casename[0]} with different mesh sizes")
-    df2.plot(x='nelem',
-             y='t_init',
-             style='.-',
-             ax=axes[1],
-             color='green',
-             grid=True,
-             marker='o',
-             ms=4,
-             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
-                                      ylabel='t_init')
-    df2.plot(x='nelem',
-             y='memory max',
-             style='.-',
-             ax=axes[2],
-             color='blue',
-             grid=True,
-             marker='o',
-             ms=4,
-             markerfacecolor='w').set(xlabel=f"Steps {args.f} - {args.l} ",
-                                      ylabel='memory max')
+
+    fig, (ax1,ax2, ax3, ax4) = plt.subplots(nrows=4, sharex=True)
+    ax5 = fig.add_subplot(111, zorder=-1)
+    for _, spine in ax5.spines.items():
+        spine.set_visible(False)
+    ax5.tick_params(labelleft=False, labelbottom=False, left=False, right=False )
+    ax5.get_shared_x_axes().join(ax5,ax1)
+    ax5.get_shared_x_axes().join(ax5,ax2)
+    ax5.get_shared_x_axes().join(ax5,ax3)
+    ax5.grid(axis="x")
+
+    line1 = ax1.plot(df2['nelem'],
+                     df2['t_step'],
+                     markerfacecolor='w',
+                     ms=4,
+                     marker='o',
+                     color='orange',
+                     label="t_step")
+    ax1.set_ylabel("time (s)", csfont, fontsize=8)
+    line1 = ax2.plot(df2['nelem'],
+                     df2['t_init'],
+                     ms=4,
+                     markerfacecolor='w',
+                     marker='o',
+                     color='green',
+                     label="t_init")
+    ax2.set_ylabel("time (s)", csfont, fontsize=8)
+    line1 = ax3.plot(df2['nelem'],
+                     df2['memory max'],
+                     ms=4,
+                     markerfacecolor='w',
+                     marker='o',
+                     color='blue',
+                     label="memory max")
+    ax3.set_ylabel("time (s)", csfont, fontsize=8)
+    line1 = ax4.plot(df2['nelem'],
+                     df2['compile time'],
+                     ms=4,
+                     markerfacecolor='w',
+                     marker='o',
+                     color='purple',
+                     label="compile time")
+    ax4.set_ylabel("time (s)", csfont, fontsize=8)
+    fig.legend(loc='upper left', labelspacing=.01, borderaxespad=.1, fontsize='small', markerscale=.6)
+    fig.align_ylabels()
+    ax1.grid()
+    ax2.grid()
+    ax3.grid()
+    ax4.grid()
+    plt.title(f"{casename[0]} with different mesh sizes between steps {args.f} - {args.l}", csfont, fontsize="small")
+    plt.xlabel(f"Number of Elements", labelpad=20) 
     plt.show()
-
-
+    
     
 def plot_bar_sum():
     my_dict['nelem'] = x_data
