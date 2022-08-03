@@ -14,6 +14,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 import string
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+import dash_table_experiments as dt
+import pandas as pd
+import plotly.graph_objs as go
+from dash.dependencies import Input, Output, State, Event
+import random
+import base64
+import dash_daq as daq
 
 
 parser = argparse.ArgumentParser(description="python plot_performance.py -f <first step> -l <last step> ./path/to/my/sqlite/files")
@@ -28,6 +38,7 @@ args = parser.parse_args()
 paths = glob.glob(args.p + "*.sqlite")
 df = pd.DataFrame() 
 my_dict = {}
+steps = {}
 x_data = []
 y_data = []
 t_step_data = []
@@ -75,6 +86,7 @@ for ele in paths:
             memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
             memory_usage_python.append(memory_usage_python_max)
         else:
+            steps[int(global_elements)] = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2])
             x_data.append(int(global_elements))
             t_step_avg = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).mean()
             t_step_data.append(t_step_avg)
@@ -90,6 +102,11 @@ for ele in paths:
     con.close()
     
 csfont = {'fontname':'DejaVu Sans'}   
+df_steps = pd.DataFrame(steps)
+df_steps = df_steps.reindex(sorted(df_steps.columns), axis=1)
+df_steps.index.name = "steps"
+print(len(df_steps.columns.values))
+print(df_steps)
 def plot_all():
     fig, axes = plt.subplots(nrows=4, ncols=1)
     my_dict['nelem'] = x_data
@@ -249,12 +266,332 @@ def add_values(bp, ax):
                         '%.3f' % y, # Value (3f = 3 decimal float)
                         verticalalignment='center', # Centered vertically with line 
                         fontsize=16, backgroundcolor="white")
-                
-if args.type == 'avg' and args.table is not None:
-    plot_bar_avg()
-elif args.type == 'sum' and args.table is not None:
-    plot_bar_sum()
-elif args.table is not None:
-    box_plot()
-else:
-    plot_all()
+
+
+##############################################################
+        #DATA MANIPULATION (MODEL)
+##############################################################
+df= pd.read_csv("/Users/georgesdurand/testing-3/dash_dataquest/top500_clean.csv")
+df['userscore'] = df['userscore'].astype(float)
+df['metascore'] = df['metascore'].astype(float)
+df['releasedate']=pd.to_datetime(df['releasedate'], format='%b %d, %Y')
+df['year']=df["releasedate"].dt.year
+df['decade']=(df["year"]//10)*10
+#cleaning Genre
+df['genre'] = df['genre'].str.strip()
+df['genre'] = df['genre'].str.replace("/", ",")
+df['genre'] = df['genre'].str.split(",")
+#year trend
+df_linechart= df.groupby('year')        .agg({'album':'size', 'metascore':'mean', 'userscore':'mean'})        .sort_values(['year'], ascending=[True]).reset_index()
+df_linechart.userscore=df_linechart.userscore*10
+#table
+df_table= df.groupby('artist').agg({'album':'size', 'metascore':'sum', 'userscore':'sum'})
+#genrebubble
+df2=(df['genre'].apply(lambda x: pd.Series(x)) .stack().reset_index(level=1, drop=True).to_frame('genre').join(df[['year', 'decade', 'userscore', 'metascore']], how='left') )
+df_bubble=  df2.groupby('genre')        .agg({'year':'size', 'metascore':'mean', 'userscore':'mean'})             .sort_values(['year'], ascending=[False]).reset_index().head(15)
+df2_decade=df2.groupby(['genre', 'decade']).agg({'year':'size'}) .sort_values(['decade'], ascending=[False]).reset_index()
+
+
+
+
+##############################################################
+        #DATA LAYOUT (VIEW)
+##############################################################
+
+#gererate table
+def generate_table(dataframe, max_rows=10):
+    '''Given dataframe, return template generated using Dash components
+    '''
+    return html.Table(
+        # Header
+        [html.Tr([html.Th(col) for col in dataframe.columns])] +
+
+        # Body
+        [html.Tr([
+            html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
+        ]) for i in range(min(len(dataframe), max_rows))],
+        style={'width': '100%', 'display': 'inline-block', 'vertical-align': 'middle'}
+    )
+
+#generate bar chart
+# def  bar(results): 
+#     gen =results["points"][0]["text"]
+#     figure = go.Figure(
+#         data=[
+#             go.Bar(x=df2_decade[df2_decade.genre==gen].decade, y=df2_decade[df2_decade.genre==gen].year)
+#         ],
+#         layout=go.Layout(
+#             title="Decade populatrity of " + gen
+#         )
+#     )
+#     return figure
+
+def  bar(results): 
+    print(results)
+    elements =results["points"][0]['x']
+    print(elements)
+    print(df_steps[elements])
+    print(df_steps.index)
+    figure = go.Figure(
+        data=[
+            go.Bar(x=df_steps.index, y=df_steps[elements], marker=dict(color=df_steps[elements], coloraxis="coloraxis"))
+        ],
+        layout=go.Layout(
+            title="Decade populatrity of ", 
+            coloraxis=dict(colorscale='Bluered_r'),
+            showlegend=False
+        )
+    )
+    figure.update_layout(coloraxis=dict(colorscale='Bluered_r'), showlegend=False)
+    return figure
+
+from plotly.subplots import make_subplots
+import plotly.graph_objects as go
+import plotly.express as px
+def subplots():
+    my_dict['nelem'] = x_data
+    my_dict['t_step'] = t_step_data
+    my_dict['t_init'] = t_init_data
+    my_dict['memory max'] = memory_usage_python
+    my_dict['compile time'] = compile_time_data
+    df3 = pd.DataFrame(my_dict)
+    df3 = df3.sort_values(by='nelem')
+    fig = make_subplots(rows=4, cols=1,
+                    shared_xaxes=True,
+                    vertical_spacing=0.02,
+                    subplot_titles=(f"{casename[0]} with different mesh sizes",),
+                    x_title="Number of Elements",
+                    y_title=("Time (s)"))
+    fig.add_trace(go.Scatter(x=df3['nelem'],
+                             y=df3['t_step'],
+                             name = 't_step',
+                             text = df3['t_step']),
+                  row=4, col=1)
+    
+    fig.add_trace(go.Scatter(x=df3['nelem'],
+                             y=df3['t_init'],
+                             name = 't_init'),
+                row=3, col=1)
+
+    fig.add_trace(go.Scatter(x=df3['nelem'],
+                             y=df3['memory max'],
+                             name = 'memory max'),
+                row=2, col=1)
+
+    fig.add_trace(go.Scatter(x=df3['nelem'],
+                             y=df3['compile time'],
+                             name = 'compile time'),
+                row=1, col=1)
+    
+    fig.update_yaxes(title_text="yaxis 1 title",
+                     row=4, col=1)
+    fig.update_yaxes(title_text="yaxis 2 title",
+                     row=3, col=1)
+    fig.update_yaxes(title_text="yaxis 3 title",
+                     row=2, col=1)
+    fig.update_yaxes(title_text="yaxis 4 title",
+                     row=1, col=1)
+    fig.update_layout(title="Plot Title",
+    xaxis_title="X Axis Title",
+    yaxis_title="Y Axis Title",
+    legend_title="Legend Title",
+    # coloraxis=dict(colorscale='Bluered_r'),
+    font=dict(
+        family="Courier New, monospace",
+        size=12,
+        color="black"
+    ))
+    return fig
+
+def plot_line():
+    steps_dict = {}
+    steps_dict['nelem'] = x_data
+    steps_dict['sum'] = t_init_data
+    df2 = pd.DataFrame(steps_dict)
+    print(df2)
+    df2 = df2.sort_values(by='nelem') 
+    
+    fig = px.line(df2, x='nelem', y="sum", title="t_init", markers=True) 
+    
+    fig = fig.update_layout( # customize font and legend orientation & position
+    font_family="Rockwell",
+    legend=dict(
+        title=None, orientation="h", y=1, yanchor="bottom", x=0.5, xanchor="center"
+    )
+    )
+    
+    return fig
+    
+       
+# Set up Dashboard and create layout
+app = dash.Dash()
+
+# Bootstrap CSS.
+app.css.append_css({
+    "external_url": "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+})
+# Bootstrap Javascript.
+app.scripts.append_script({
+    "external_url": "https://code.jquery.com/jquery-3.2.1.slim.min.js"
+})
+app.scripts.append_script({
+    "external_url": "https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
+})
+app.scripts.append_script({
+    "external_url": "https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
+})
+
+#define app layout
+
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
+from PIL import Image, ImageEnhance
+from PIL import Image
+import requests
+import base64
+from io import BytesIO
+url = 'https://ceesd.illinois.edu/wp-content/uploads/2021/02/ceesd_wordmark.svg'
+#img = Image.open(BytesIO(response.content))
+
+# drawing = svg2rlg('input/ice.svg')
+# renderPM.drawToFile(drawing, 'output/ice.png', fmt='PNG')
+
+def write_text(data: str, path: str):
+    with open(path, 'w') as file:
+        file.write(data)
+
+
+svg = requests.get(url).text
+
+write_text(svg, './NO_0301_Oslo.svg')
+
+
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPDF, renderPM
+
+drawing = svg2rlg('./NO_0301_Oslo.svg')
+renderPM.drawToFile(drawing, "file.png", fmt="PNG")
+
+
+def b64_image(image_filename):
+    with open(image_filename, 'rb') as f:
+        image = f.read()
+    return 'data:image/png;base64,' + base64.b64encode(image).decode('utf-8')
+
+
+app.layout =  html.Div([ 
+    html.Div([
+        html.Div(
+                    [
+                        html.Img(src=b64_image("file.png"))
+                        #html.H1("The Center for Exascale-enabled Scramjet Design", className="text-center", id="heading")
+                    ], className = "col-md-6"
+                ),
+        ],className="row"),
+
+    html.Div(
+        [ #dropdown and score
+        
+        
+            html.Div([
+                html.Div(
+                    [
+                        dcc.Dropdown(
+                            options=[
+                                {'label': 'memory_usage_python', 'value': 'memory_usage_python'},
+                                {'label': 't_step', 'value': 't_step'},  
+                            ],
+                            id='score-dropdown'
+                        )
+                    ], className="col-md-6"),
+                html.Div(
+                    html.Table(id='datatable', className = "table col-md-12")
+            ),
+            ],className="col-md-6"),
+
+            html.Div(
+                [ #Line Chart
+                    dcc.Graph(id='line-graphs',
+                        figure= subplots()
+                              ),
+                ], className = "col-md-6"
+            ),
+        ], className="row"),
+
+    html.Div(
+        [
+            html.Div(
+                [
+                    dcc.Graph(id='line-graph',
+                              figure = plot_line()
+                            #  figure=go.Figure(
+                            #      data=[
+                            #          go.Scatter(
+                            #             x=df_bubble.userscore,
+                            #             y=df_bubble.metascore,
+                            #             mode='lines',
+                            #             text=df_bubble.genre,
+                                        
+                            #             marker=dict(
+                            #             color= random.sample(range(1,200),15),
+                            #             size=df_bubble.year,
+                            #             sizemode='area',
+                            #             sizeref=2.*max(df_bubble.year)/(40.**2),
+                            #           sizemin=4
+                            #             )
+                            #          )
+                                    
+                            #      ],
+                            #      layout=go.Layout(title="Genre popularity")
+                            #  )
+                              
+                              
+                              )
+                ], className = "col-md-6"
+            ),
+   html.Div(
+                [
+                    dcc.Graph(id='bar-chart',
+                              style={'margin-top': '20'})
+                ], className = "col-md-6"
+            ),
+        
+        ], className="row"),
+
+ ], className="container-fluid")
+
+
+##############################################################
+            #DATA CONTROL (CONTROLLER)
+##############################################################
+@app.callback(
+    Output(component_id='datatable', component_property='children'),
+    [Input(component_id='score-dropdown', component_property='value')]
+)
+
+def update_table(input_value):
+    return generate_table(df_table.sort_values([input_value], ascending=[False]).reset_index())
+
+@app.callback(
+    Output(component_id='bar-chart', component_property='figure'),
+    [Input(component_id='line-graph', component_property='hoverData')]
+)
+
+def update_graph(hoverData):
+   return bar(hoverData)
+
+
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
+
+# if args.type == 'avg' and args.table is not None:
+#     plot_bar_avg()
+# elif args.type == 'sum' and args.table is not None:
+#     plot_bar_sum()
+# elif args.table is not None:
+#     box_plot()
+# else:
+#     plot_all()
+
+
