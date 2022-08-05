@@ -1,7 +1,9 @@
+from curses import color_content
 from operator import index
 import os
 from tkinter import font
 from turtle import color
+import colorama
 import pandas as pd 
 import sqlite3
 import glob
@@ -24,7 +26,13 @@ from dash.dependencies import Input, Output, State, Event
 import random
 import base64
 import dash_daq as daq
-
+from svglib.svglib import svg2rlg
+from reportlab.graphics import renderPM
+from PIL import Image, ImageEnhance
+from PIL import Image
+import requests
+import base64
+from io import BytesIO
 
 parser = argparse.ArgumentParser(description="python plot_performance.py -f <first step> -l <last step> ./path/to/my/sqlite/files")
 parser.add_argument("-f", type=int, metavar='first step', help= "the first step")
@@ -33,6 +41,7 @@ parser.add_argument("-table", type=str, metavar='table', help= "the sqlite folde
 parser.add_argument("-p", type=str, metavar='path', help= "the sqlite folder path")
 parser.add_argument("-type", type=str, metavar='type', help= "sum or avg")
 parser.add_argument("-annotate", type=bool, metavar='annotate', help= "true or false")
+parser.add_argument("-dash", type=bool, metavar='dash', help= "true or false")
 
 args = parser.parse_args()
 paths = glob.glob(args.p + "*.sqlite")
@@ -42,6 +51,10 @@ steps = {}
 x_data = []
 y_data = []
 t_step_data = []
+
+t_step_data_sum = [] #new 
+t_step_data_avg = [] #new
+
 t_init_data = []
 memory_usage_python = []
 compile_time_data = []
@@ -76,6 +89,22 @@ for ele in paths:
                 
             else :
                 df[global_elements] = other.iloc[:, 2]
+    elif args.dash:
+        steps[int(global_elements)] = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2])
+        x_data.append(int(global_elements))
+        t_step_sum = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).sum() 
+        t_step_data_sum.append(t_step_sum)
+        t_step_avg = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).mean()
+        t_step_data_avg.append(t_step_avg)
+        t_init = pd.read_sql_query(f"SELECT * from t_init", con).iloc[:,2]
+        t_init_data.append(float(t_init))
+        memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
+        memory_usage_python.append(memory_usage_python_max)    
+        compile_time = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[0:1,2])
+        compile_time_data.append(float(compile_time))
+        t_step_sum = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).sum() 
+        t_step_data.append(t_step_sum)
+        
     else:
         if args.type == 'sum' :
             x_data.append(int(global_elements))
@@ -85,8 +114,10 @@ for ele in paths:
             t_init_data.append(float(t_init))
             memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
             memory_usage_python.append(memory_usage_python_max)
+            compile_time = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[0:1,2]) # new
+            compile_time_data.append(float(compile_time)) #new
         else:
-            steps[int(global_elements)] = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2])
+            #steps[int(global_elements)] = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2])
             x_data.append(int(global_elements))
             t_step_avg = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[args.f:args.l,2]).mean()
             t_step_data.append(t_step_avg)
@@ -95,18 +126,14 @@ for ele in paths:
             memory_usage_python_max = (pd.read_sql_query(f"SELECT * from memory_usage_python", con).iloc[args.f:args.l,2]).max()
             memory_usage_python.append(memory_usage_python_max)
             compile_time = (pd.read_sql_query(f"SELECT * from t_step", con).iloc[0:1,2])
-            print(compile_time)
             compile_time_data.append(float(compile_time))
-            
-    
     con.close()
     
 csfont = {'fontname':'DejaVu Sans'}   
 df_steps = pd.DataFrame(steps)
 df_steps = df_steps.reindex(sorted(df_steps.columns), axis=1)
 df_steps.index.name = "steps"
-print(len(df_steps.columns.values))
-print(df_steps)
+
 def plot_all():
     fig, axes = plt.subplots(nrows=4, ncols=1)
     my_dict['nelem'] = x_data
@@ -266,75 +293,85 @@ def add_values(bp, ax):
                         '%.3f' % y, # Value (3f = 3 decimal float)
                         verticalalignment='center', # Centered vertically with line 
                         fontsize=16, backgroundcolor="white")
-
-
-##############################################################
-        #DATA MANIPULATION (MODEL)
-##############################################################
-df= pd.read_csv("/Users/georgesdurand/testing-3/dash_dataquest/top500_clean.csv")
-df['userscore'] = df['userscore'].astype(float)
-df['metascore'] = df['metascore'].astype(float)
-df['releasedate']=pd.to_datetime(df['releasedate'], format='%b %d, %Y')
-df['year']=df["releasedate"].dt.year
-df['decade']=(df["year"]//10)*10
-#cleaning Genre
-df['genre'] = df['genre'].str.strip()
-df['genre'] = df['genre'].str.replace("/", ",")
-df['genre'] = df['genre'].str.split(",")
-#year trend
-df_linechart= df.groupby('year')        .agg({'album':'size', 'metascore':'mean', 'userscore':'mean'})        .sort_values(['year'], ascending=[True]).reset_index()
-df_linechart.userscore=df_linechart.userscore*10
-#table
-df_table= df.groupby('artist').agg({'album':'size', 'metascore':'sum', 'userscore':'sum'})
-#genrebubble
-df2=(df['genre'].apply(lambda x: pd.Series(x)) .stack().reset_index(level=1, drop=True).to_frame('genre').join(df[['year', 'decade', 'userscore', 'metascore']], how='left') )
-df_bubble=  df2.groupby('genre')        .agg({'year':'size', 'metascore':'mean', 'userscore':'mean'})             .sort_values(['year'], ascending=[False]).reset_index().head(15)
-df2_decade=df2.groupby(['genre', 'decade']).agg({'year':'size'}) .sort_values(['decade'], ascending=[False]).reset_index()
-
-
-
-
-##############################################################
-        #DATA LAYOUT (VIEW)
-##############################################################
-
-#gererate table
-def generate_table(dataframe, max_rows=10):
+                
+def generate_table(dataframe):
     '''Given dataframe, return template generated using Dash components
     '''
-    return html.Table(
-        # Header
-        [html.Tr([html.Th(col) for col in dataframe.columns])] +
+    t_step = {}
+    t_step['nelem'] = x_data
+    
+    if(dataframe == "t_step_data_avg"):
+        print(t_step_data_avg)
+        t_step["t_step_data_avg"] = t_step_data_avg
+        df_t_step = pd.DataFrame(t_step)
+        df_t_step = df_t_step.sort_values(by='nelem') 
+        fig = px.line(df_t_step, x=df_t_step['nelem'],
+                      y=df_t_step[dataframe],
+                      markers=True, 
+                      color_discrete_sequence=["Blue"])
+    elif(dataframe == "t_init"):
+        t_step["t_init"]  = t_init_data
+        df_t_step = pd.DataFrame(t_step)
+        df_t_step = df_t_step.sort_values(by='nelem') 
+        fig = px.line(df_t_step, x=df_t_step['nelem'],
+                      y=df_t_step[dataframe],
+                      markers=True,
+                      color_discrete_sequence=["Red"])
+    elif(dataframe == "memory max"):
+        t_step["memory max"] = memory_usage_python
+        df_t_step = pd.DataFrame(t_step)
+        df_t_step = df_t_step.sort_values(by='nelem') 
+        fig = px.line(df_t_step, x=df_t_step['nelem'],
+                      y=df_t_step[dataframe],
+                      markers=True,
+                      color_discrete_sequence=["MediumSeaGreen"])
+    elif(dataframe == "compile time"):
+        t_step["compile time"] = compile_time_data
+        df_t_step = pd.DataFrame(t_step)
+        df_t_step = df_t_step.sort_values(by='nelem') 
+        fig = px.line(df_t_step, x=df_t_step['nelem'],
+                      y=df_t_step[dataframe],
+                      markers=True,
+                      color_discrete_sequence=["BlueViolet"])
+    else:
+        t_step["t_step_data_sum"] = t_step_data_sum    
+        df_t_step = pd.DataFrame(t_step)
+        df_t_step = df_t_step.sort_values(by='nelem') 
+        fig = px.line(df_t_step,
+                      x=df_t_step['nelem'],
+                      y=df_t_step[dataframe],
+                      markers=True,
+                      color_discrete_sequence=["Blue"])
+    
+    return fig
 
-        # Body
-        [html.Tr([
-            html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
-        ]) for i in range(min(len(dataframe), max_rows))],
-        style={'width': '100%', 'display': 'inline-block', 'vertical-align': 'middle'}
-    )
-
-#generate bar chart
-# def  bar(results): 
-#     gen =results["points"][0]["text"]
-#     figure = go.Figure(
-#         data=[
-#             go.Bar(x=df2_decade[df2_decade.genre==gen].decade, y=df2_decade[df2_decade.genre==gen].year)
-#         ],
-#         layout=go.Layout(
-#             title="Decade populatrity of " + gen
-#         )
-#     )
-#     return figure
-
-def  bar(results): 
-    print(results)
+def box(results):
     elements =results["points"][0]['x']
-    print(elements)
-    print(df_steps[elements])
-    print(df_steps.index)
     figure = go.Figure(
         data=[
-            go.Bar(x=df_steps.index, y=df_steps[elements], marker=dict(color=df_steps[elements], coloraxis="coloraxis"))
+            go.Box(y=df_steps[elements])
+        ],
+        layout=go.Layout(
+            title="Decade populatrity of ", 
+            coloraxis=dict(colorscale='Bluered_r'),
+            showlegend=False
+        )
+    )
+    return figure
+    
+    
+def  bar(results): 
+    # print(results)
+    elements =results["points"][0]['x']
+    # print(elements)
+    # print(df_steps[elements])
+    # print(df_steps.index)
+    figure = go.Figure(
+        data=[
+            go.Bar(x=df_steps.index,
+                   y=df_steps[elements],
+                   marker=dict(color=df_steps[elements],
+                               coloraxis="coloraxis"))
         ],
         layout=go.Layout(
             title="Decade populatrity of ", 
@@ -408,7 +445,7 @@ def plot_line():
     steps_dict['nelem'] = x_data
     steps_dict['sum'] = t_init_data
     df2 = pd.DataFrame(steps_dict)
-    print(df2)
+    # print(df2)
     df2 = df2.sort_values(by='nelem') 
     
     fig = px.line(df2, x='nelem', y="sum", title="t_init", markers=True) 
@@ -442,19 +479,7 @@ app.scripts.append_script({
 })
 
 #define app layout
-
-from svglib.svglib import svg2rlg
-from reportlab.graphics import renderPM
-from PIL import Image, ImageEnhance
-from PIL import Image
-import requests
-import base64
-from io import BytesIO
 url = 'https://ceesd.illinois.edu/wp-content/uploads/2021/02/ceesd_wordmark.svg'
-#img = Image.open(BytesIO(response.content))
-
-# drawing = svg2rlg('input/ice.svg')
-# renderPM.drawToFile(drawing, 'output/ice.png', fmt='PNG')
 
 def write_text(data: str, path: str):
     with open(path, 'w') as file:
@@ -478,34 +503,35 @@ def b64_image(image_filename):
         image = f.read()
     return 'data:image/png;base64,' + base64.b64encode(image).decode('utf-8')
 
-
 app.layout =  html.Div([ 
     html.Div([
         html.Div(
                     [
                         html.Img(src=b64_image("file.png"))
-                        #html.H1("The Center for Exascale-enabled Scramjet Design", className="text-center", id="heading")
                     ], className = "col-md-6"
                 ),
         ],className="row"),
 
     html.Div(
-        [ #dropdown and score
-        
-        
+        [
             html.Div([
                 html.Div(
                     [
                         dcc.Dropdown(
                             options=[
-                                {'label': 'memory_usage_python', 'value': 'memory_usage_python'},
-                                {'label': 't_step', 'value': 't_step'},  
+                                {'label': 't_step_data_sum', 'value': 't_step_data_sum'},
+                                {'label': 't_step_data_avg', 'value': 't_step_data_avg'},
+                                {'label': 't_init', 'value': 't_init'},  
+                                {'label': 'memory max', 'value': 'memory max'},  
+                                {'label': 'compile time', 'value': 'compile time'},    
                             ],
                             id='score-dropdown'
                         )
-                    ], className="col-md-6"),
+                    ], className="col-md-12"),
                 html.Div(
-                    html.Table(id='datatable', className = "table col-md-12")
+                    [
+                    dcc.Graph(id='boxplot')
+                ], className = "boxplot col-md-12"
             ),
             ],className="col-md-6"),
 
@@ -522,30 +548,9 @@ app.layout =  html.Div([
         [
             html.Div(
                 [
-                    dcc.Graph(id='line-graph',
-                              figure = plot_line()
-                            #  figure=go.Figure(
-                            #      data=[
-                            #          go.Scatter(
-                            #             x=df_bubble.userscore,
-                            #             y=df_bubble.metascore,
-                            #             mode='lines',
-                            #             text=df_bubble.genre,
-                                        
-                            #             marker=dict(
-                            #             color= random.sample(range(1,200),15),
-                            #             size=df_bubble.year,
-                            #             sizemode='area',
-                            #             sizeref=2.*max(df_bubble.year)/(40.**2),
-                            #           sizemin=4
-                            #             )
-                            #          )
-                                    
-                            #      ],
-                            #      layout=go.Layout(title="Genre popularity")
-                            #  )
+                    dcc.Graph(id='boxplot2'
                               
-                              
+
                               )
                 ], className = "col-md-6"
             ),
@@ -565,21 +570,32 @@ app.layout =  html.Div([
             #DATA CONTROL (CONTROLLER)
 ##############################################################
 @app.callback(
-    Output(component_id='datatable', component_property='children'),
+    Output(component_id='boxplot', component_property='figure'),
     [Input(component_id='score-dropdown', component_property='value')]
 )
 
-def update_table(input_value):
-    return generate_table(df_table.sort_values([input_value], ascending=[False]).reset_index())
+def update_table(value):
+    print(value)
+    return generate_table(value)
 
 @app.callback(
     Output(component_id='bar-chart', component_property='figure'),
-    [Input(component_id='line-graph', component_property='hoverData')]
+    [Input(component_id='boxplot', component_property='hoverData')]
+    
 )
+
+@app.callback(
+    Output(component_id='boxplot2', component_property='figure'),
+    [Input(component_id='boxplot', component_property='hoverData')]
+)
+
 
 def update_graph(hoverData):
    return bar(hoverData)
 
+def update_box(hoverData):
+    print("yo")
+    return box(hoverData)
 
 
 if __name__ == '__main__':
@@ -593,5 +609,3 @@ if __name__ == '__main__':
 #     box_plot()
 # else:
 #     plot_all()
-
-
